@@ -4,46 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-**言传汉语（MandarinBridge）** 的静态营销落地页 —— 面向在华留学生的一对一线上汉语辅导。纯 HTML/CSS/原生 JS，中英双语（中文 / English），响应式。无框架、无构建、无依赖、无 package.json、无测试。
+**言传中文（MandarinBridge）** 的营销落地页 —— 面向在华留学生的一对一线上中文辅导。React 19 + Vite + Tailwind v4，中英双语（中文 / English），响应式。无测试、无 CI。
 
 ## 常用命令
 
-没有构建 / lint / 测试工具链，开发和验证方式如下：
-
-- **预览**：直接用浏览器打开 `index.html`，或起静态服务器，如 `python -m http.server 8000`（本机已装 Python）。
-- **JS 语法校验**：`node --check script.js`（改完 `script.js` 后跑一次）。
+- **开发**：`npm run dev`（Vite 开发服务器，默认 http://localhost:5173）。
+- **构建 / 预览产物**：`npm run build` → `npm run preview`。
 - **核对改动**：`git diff` —— 本仓库没有 CI，`git diff` 是主要的验证手段。
 
 ## 文件布局
 
-- `index.html` —— 只有页面结构，全部可见文案以静态中文兜底文本形式写在这里。
-- `styles.css` —— 全部样式：`:root` 设计令牌，随后大致按分区顺序（导航 → hero → 服务 → 师资 → 流程 → 反馈 → FAQ → 预约 → 页脚），最后是响应式断点。
-- `script.js` —— `I18N` 字典 + 全部行为逻辑（语言切换、数字滚动、scrollspy、移动端汉堡、服务轮播、背景视差、表单提交）。
+- `index.html` —— Vite 入口：meta / favicon / `<div id="root">`，不含任何可见文案。
+- `src/main.jsx` —— React 挂载入口（StrictMode）。
+- `src/App.jsx` —— 板块装配（BgDeco → NavBar → Hero → Services → Process → WhyUs → Voices → Faq → Booking → Footer）+ 全局 `.reveal` IntersectionObserver。
+- `src/i18n.jsx` —— `I18N` 双语字典（{zh, en}）+ `I18nProvider` / `useI18n`（state 驱动渲染，localStorage 键 `mb_lang`）。
+- `src/components/*.jsx` —— 每板块一个组件，交互逻辑在组件内用 hooks 实现。
+- `src/style.css` —— `@import "tailwindcss"` + `@theme` 设计令牌 + 原自定义 CSS（复杂视觉与 keyframes 原样保留）。
 - `design.md` —— **设计系统规范**（配色、字体、组件、布局、断点）。把它当作视觉设计的"事实来源"，改动视觉时在同一个提交里同步更新它。
-- `assets/avatars/` 和 `assets/carousel/` —— 相对路径引用的 PNG 图片。
+- `public/assets/avatars/`、`public/assets/carousel/` —— 静态图片，代码中以 `/assets/...` 绝对路径引用。
 
-## i18n —— 最容易踩的坑
+## i18n —— 文案唯一来源
 
-文案同时存在于**两个地方，必须保持同步**：
+文案只存在于**一个地方**：`src/i18n.jsx` 的 `I18N` 字典，按 key 存放 `{zh, en}`。组件里 `const { t } = useI18n()` 后以 `{t('key')}` 渲染，切换语言由 `useI18n` 的 state 触发全树重渲染，语言持久化到 `localStorage`（键名 `mb_lang`），`<html lang>` 由 Provider 的 effect 同步。
 
-1. `index.html` 里的静态中文文本（JS 加载前的兜底，也是搜索引擎看到的内容）。
-2. `script.js` 里的 `I18N` 对象 —— 按 key 存放 `{zh, en}` 双语。
-
-文本通过 `data-i18n="key"`（以 `innerHTML` 替换）和 `data-i18n-ph="key"`（以 `placeholder` 替换）绑定，`setLang()` 读取这些属性并替换内容，所选语言持久化到 `localStorage`（键名 `mb_lang`）。
-
-新增或修改任何用户可见字符串时：先在 `index.html` 添加 / 更新 `data-i18n` key，再到 `I18N` 里为 **zh 和 en 两种语言**都补上对应条目。字符串里若有内联 HTML（如 `<em>`、`<b>`、`<br>`），静态兜底文本和字典条目里都要带上，否则两种语言渲染会不一致。
+新增或修改任何用户可见字符串时：在 `I18N` 里为 **zh 和 en 两种语言**都补上条目，然后在组件中用 `t()` 取值。字符串里若含内联 HTML（如 `why.h2` / `book.h2` 的 `<br>`、`v1-3.q` 的 `<b>`），渲染时用 `dangerouslySetInnerHTML`（现有这些 key 已处理，新增含 HTML 的 key 也要同样处理）。
 
 ## 需要注意的跨文件耦合
 
-- **导航 ↔ scrollspy ↔ 分区 id**：`index.html` 里的导航链接、`<section>` 上的 `id`、以及 `script.js` scrollspy IIFE 里硬编码的 `secs = ['#top','#services','#why','#process','#faq']` 三者必须一致。新增、删除或重命名分区时，三处都要同步改。
-- **设计令牌**：`styles.css` 的 `:root` 定义了 `--primary`、`--cta`、`--bg`、`--text`、`--glass` 等变量。尽量用变量而非硬编码新颜色；新的非变量颜色要写进 `design.md`。
-- **响应式断点**：`@media (max-width:980px)` 与 `@media (max-width:640px)`。980px 那一档还会把 `fixed` 视差背景降级为 `scroll`（iOS 兼容 + 省电）—— 分区若新增 `fixed` 背景，也要做同样处理。
+- **导航 ↔ scrollspy ↔ 分区 id**：`NavBar.jsx` 的导航链接、各组件 `<section>` 上的 `id`、以及 `NavBar.jsx` scrollspy 里硬编码的 `secs = ['#top','#services','#process','#why','#faq']` 三者必须一致（数组顺序要与 DOM 中板块出现顺序相同）。新增、删除或重命名分区时，三处都要同步改。
+- **设计令牌**：`src/style.css` 的 `@theme` 是唯一来源——`--color-*` / `--shadow-*` / `--font-*` / `--breakpoint-*` 供 Tailwind 工具类，`--primary` / `--sans` 等非命名空间变量供自定义 CSS 用 `var()` 引用，构建时全部输出为 `:root` 变量。改颜色只改 `@theme`，并同步 `design.md`；新的非变量颜色写进 `design.md`。
+- **自定义 CSS 的层叠规则**：类/id 级自定义样式保持未分层（unlayered），永远压过 Tailwind 工具类——**不要在自定义 CSS 里写全局 margin/padding 重置**（会杀死 `mx-auto` 等工具类，即"偏左"事故根因）；元素级基础样式统一放 `src/style.css` 顶部的 `@layer base` 块。
+- **响应式断点**：`@theme` 里 `--breakpoint-tab: 61.25rem`（980px）、`--breakpoint-mob: 40rem`（640px）。Tailwind 侧用 `max-tab:` / `max-mob:` 前缀（表达 max-width）；自定义 CSS 侧沿用 `@media (max-width:980px)` / `(max-width:640px)`。980px 那一档还会把 `fixed` 视差背景降级为 `scroll`（iOS 兼容 + 省电）—— 分区若新增 `fixed` 背景，也要做同样处理。
 
 ## 结构备注
 
-- 页面共 9 大板块 + 导航 + 页脚，每块都有锚点 `id`，使用平滑滚动 + scrollspy 高亮。
-- CSS / JS 文件顶部各有一个**空行 + 2 空格顶层缩进**，是从单个内联 `<style>`/`<script>` 块拆分时遗留的。它无害且有意保留 —— 别整体重排，以免产生大段噪音 diff。
-- JS 按"一个交互一个 IIFE"组织，每个 IIFE 都对缺失元素做了判空保护（`if(!els.length) return;`），并尊重 `prefers-reduced-motion`。
+- 页面共 7 个板块（hero/services/process/why/voices/faq/booking）+ 导航 + 页脚，每块都有锚点 `id`，使用平滑滚动 + scrollspy 高亮。
+- 复杂视觉（分区圆点 fixed 背景、玻璃卡、hero 装饰、轮播、keyframes）保留为自定义 CSS；简单布局走 Tailwind utilities。
+- React StrictMode 下 effect 会「挂载 → 清理 → 重挂」，所有 effect 都要带 cleanup（轮播定时器、全局监听均已处理）。
+- **并行编辑**：用户经常在另一个 Claude 会话中同时修改本仓库文件。会话中收到 "file modified on disk" 提示时，以磁盘上的当前状态为准继续工作，不要回滚对方的改动；动手编辑前先 grep / Read 目标区域。
 
 ## Git
 
