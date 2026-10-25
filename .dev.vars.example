@@ -1,0 +1,7 @@
+# Copy to .dev.vars for optional local email testing. Empty credentials skip email.
+# Local KV works without a Cloudflare login and is separate from production.
+RESEND_API_KEY=""
+NOTIFY_EMAIL=""
+# The default sender can only send to your Resend account email.
+# Use an address on your verified domain to send to other recipients.
+RESEND_FROM_EMAIL="onboarding@resend.dev"

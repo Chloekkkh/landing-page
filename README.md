@@ -7,16 +7,18 @@
 ## 功能特性
 
 - **中英双语切换**：一键切换全站文案，语言偏好存于 `localStorage`，刷新后自动恢复
-- **服务轮播**：5 条课程路线，支持自动播放、左右箭头、圆点、触摸滑动与键盘方向键
-- **滚动动效**：区块渐入、背景色斑视差、Hero 几何装饰与声波频谱
+- **课程切换**：学业辅导、HSK 备考、日常交际、职场中文、文化体验 5 类课程同级展示，点击入口或用左右方向键、Home、End 切换，无自动播放
+- **轻柔动效**：Hero 分组入场、照片轻微缩放、区块首次滚动渐入；声波逐条错峰律动，可暂停，离开视口或切后台自动暂停。课程文案即时切换，图片仅保留轻微过渡
 - **导航**：scrollspy 滚动高亮当前板块；移动端收起为汉堡菜单
 - **响应式**：980px / 640px 两档断点，适配手机与桌面
 - **无障碍**：语义化标签、表单 `label`、`aria-label`、`:focus-visible`、尊重 `prefers-reduced-motion`
-- **预约表单收集**：提交经 Cloudflare Pages Function 写入 KV 备份并发送邮件通知（见「部署」）
+- **预约表单收集**：Cloudflare Worker 接收预约，写入 KV 留档后在后台发送邮件通知（见「部署」）
 
 ## 技术栈
 
-React 19 + Vite 8 + Tailwind CSS v4（CSS-first 配置，`@theme` 设计令牌）。构建产物为纯静态文件，任意静态托管均可部署。
+React 19 + Vite 8 + Tailwind CSS v4（CSS-first 配置，`@theme` 设计令牌）。Cloudflare Workers Static Assets 托管前端，Worker 提供同源预约 API。Node 版本固定为 `24.15.0`（`.node-version`）。
+
+Worker 兼容日期为 `2026-10-19`，与当前锁定 Wrangler 自带的 workerd 运行时一致；更新日期前应先验证本地运行时支持。
 
 ## 目录结构
 
@@ -28,9 +30,14 @@ landing-page/
 │   ├── App.jsx           # 板块装配 + 全局 reveal 观察器
 │   ├── i18n.jsx          # I18N 双语字典 + I18nProvider / useI18n
 │   ├── style.css         # Tailwind @theme 令牌 + 自定义 CSS（复杂视觉 / keyframes）
-│   └── components/       # NavBar / Hero / Services / Process / WhyUs / Voices / Faq / Booking / Footer / BgDeco
+│   ├── motion.js         # 减少动态效果偏好与原生动画辅助
+│   ├── useCourseMotion.js # 课程图片与高度过渡
+│   └── components/       # 导航、各分区、RevealObserver
 ├── public/assets/        # 图片资源（avatars / carousel）
-├── functions/api/        # Cloudflare Pages Functions（预约表单接收）
+├── worker/               # Worker 路由入口与预约处理（index.js / booking.js）
+├── tests/                # Node 内置测试，模拟 KV 与邮件服务
+├── wrangler.jsonc        # Worker / Static Assets / KV 绑定 / 日志配置
+├── .dev.vars.example     # 本地邮件配置示例，无真实凭据
 ├── design.md             # 设计系统规范（配色 / 字体 / 组件 / 断点）
 ├── vite.config.js
 └── CLAUDE.md             # 面向 Claude Code 的开发说明
@@ -39,11 +46,17 @@ landing-page/
 ## 本地运行
 
 ```bash
-npm install          # 首次
-npm run dev          # 开发服务器 → http://localhost:5173
-npm run build        # 构建到 dist/
-npm run preview      # 预览构建产物
+npm ci               # 按锁文件安装依赖，先切换到 Node 24.15.0
+npm run dev          # Vite 前端开发 → http://localhost:5173
+npm run dev:worker   # 构建前端并启动完整 Worker → http://localhost:8787
+npm test             # API 单元测试；不调用真实邮件服务
+npm run build        # 前端构建到 dist/
+npm run preview      # 仅预览静态构建产物
 ```
+
+`npm run dev` 和 `npm run preview` 不运行预约 API；表单联调请用 `npm run dev:worker`。Worker 代码会自动重载；修改前端后需重新运行该命令以更新 `dist/`。本地 KV 自动创建、持久化到 `.wrangler/`，与线上数据隔离，无需 Cloudflare 登录。
+
+本地如需验证邮件，执行 `cp .dev.vars.example .dev.vars`，填写自己的测试配置后再启动 Worker。凭据留空时，预约仍写入本地 KV，通知会被跳过并记录日志。本地配置和数据已加入 `.gitignore`。
 
 ## 双语文案说明
 
@@ -53,12 +66,61 @@ npm run preview      # 预览构建产物
 
 完整的配色、字体、组件、断点规范见 [design.md](design.md)。
 
-## 部署
+## 部署到 Cloudflare Workers
 
-`npm run build` 后把 `dist/` 目录部署到任意静态托管（GitHub Pages、Netlify、Vercel、对象存储等）即可。**预约表单收集依赖 Cloudflare Pages**，配置如下：
+### GitHub 自动部署
 
-1. **Pages 项目**：构建命令 `npm run build`，输出目录 `dist`。仓库根的 `functions/` 目录会被自动识别为 Pages Functions（`POST /api/booking`）。
-2. **KV 命名空间**：在 Cloudflare 创建 KV namespace，并在 Pages 项目 Settings → Bindings 绑定，变量名 `BOOKINGS`（预约提交的备份留档）。
-3. **环境变量（Secrets）**：`RESEND_API_KEY`（Resend 后台的 API Key）、`NOTIFY_EMAIL`（接收预约通知的邮箱）。
-4. **Resend**：注册后在免费层验证自己的收件邮箱即可——沙箱发件域（`onboarding@resend.dev`）只能发到账户验证过的邮箱，恰好满足「提交发给自己」。验证自有域名后，把 `functions/api/booking.js` 里的 `from` 改为 `hello@mandarinbridge.cn`。
-5. **本地联调函数**（可选）：`npm i -D wrangler` 后 `npx wrangler pages dev dist`。不联调时 `npm run dev` 下提交表单会显示失败提示（函数不存在），属预期。
+1. 在 Cloudflare 的 Workers & Pages 中创建 **Worker** 并连接 GitHub 仓库 `Chloekkkh/landing-page`。本轮设计与预约后端改动推送到 `dev`；现在部署本轮版本时选择 `dev`。正式站如继续使用 `main`，先把经过验收的 `dev` 合入 `main`，再部署该分支。
+2. Worker 名称使用 `mandarinbridge-landing`，与 `wrangler.jsonc` 保持一致。构建设置如下：
+
+   | 设置 | 值 |
+   | --- | --- |
+   | 生产分支 | `dev`（现在部署本轮版本）；正式站可在合并后使用 `main` |
+   | 根目录 | 仓库根目录 |
+   | 构建命令 | `npm test && npm run build` |
+   | 部署命令 | `npx wrangler deploy` |
+   | 构建变量 | `NODE_VERSION=24.15.0` |
+
+   这里的“生产分支”是这个 Worker 自动发布所跟踪的 Git 分支；选择 `dev` 后，每次推送 `dev` 都会更新该 Worker 的在线版本。初期关闭其他分支自动构建/预览，避免测试预约影响生产数据或触发通知。Workers 的静态目录由配置里的 `assets.directory` 指定为 `dist`，无需填写 Pages 的输出目录，也无需额外部署 `functions/`。
+3. 首次部署时 Wrangler 自动为 `BOOKINGS` 绑定创建 KV namespace；确认构建使用的 API token 有 Workers KV Storage 编辑权限。GitHub 部署创建的资源 ID 可在 Cloudflare 后台查看，不会自动回写仓库。若已有预约 KV，部署前在绑定配置中填入现有 `id` 以复用它。
+4. 在该 Worker 的 **Settings → Variables & Secrets** 中配置运行时参数，然后部署新版本使其生效：
+
+   | 参数 | 用途 |
+   | --- | --- |
+   | `RESEND_API_KEY` | Resend API Key，使用 Secret |
+   | `NOTIFY_EMAIL` | 接收预约通知的邮箱，使用变量或 Secret |
+   | `RESEND_FROM_EMAIL` | 可选，发件邮箱地址，默认 `onboarding@resend.dev` |
+
+   这些参数必须供 **Worker 运行时**使用，不能只填在 Build variables 中。`keep_vars` 已启用，后续代码部署会保留后台配置的普通变量；不要将密钥加上 `VITE_` 前缀或提交到仓库。
+5. 默认测试发件域只能发到 **Resend 账户邮箱**；其他收件地址须先在 Resend 验证自有域名，再将 `RESEND_FROM_EMAIL` 配置为该域名下的地址（例如 `hello@mandarinbridge.cn`）。仅修改收件地址不能解除测试域限制。
+6. 发布后打开网站，提交一条明确标记为测试的预约，在 KV 中确认留档并检查通知收件箱。在 Workers 日志中检查 `booking.*` 错误事件。自定义域名可在 Worker 的 Domains & Routes 中绑定。
+
+首次部署完成并不代表邮件已配置成功，需完成上述运行时配置和预约验收。
+
+独立 Sites 团队预览禁用预约提交；GitHub 中的主项目保留真实预约接口。Cloudflare 部署的是主项目，KV 配置正常后即可接收预约；邮件参数不完整时仍保存到 KV，但不会发送通知。
+
+### 预约接口与故障处理
+
+`POST /api/booking` 接受 JSON，必填 `name`、`school`、`contact`，可选 `level`、`need`、`note`；`website` 是蜜罐字段。前五个字段的长度上限分别为 200/200/200/100/100，`note` 为 2000，字符串会去除首尾空格并截断。
+
+- 非法 JSON、非对象、数组或缺少必填内容：`400 {"ok":false}`。
+- 蜜罐命中：`200 {"ok":true}`，不保存、不发信。
+- KV 保存成功：`200 {"ok":true,"saved":true}`，邮件在 `ctx.waitUntil()` 中后台发送，不承诺已送达。
+- KV 失败但 Resend 接受邮件：`200 {"ok":true,"saved":false,"emailed":true}`。
+- 两个渠道均失败：`500 {"ok":false}`。邮件请求最多等待 5 秒。
+- 非 POST 的预约请求返回 JSON `405` 和 `Allow: POST`；未知 `/api` 路由返回 JSON `404`，不回退到首页。
+
+后台邮件失败只记录错误事件，没有自动重试；预约已经保存在 KV，可手动查询跟进。日志不输出预约正文、联系方式、API Key 或邮件服务的错误正文。
+
+### 本地发布与检查
+
+```bash
+npm test
+npm run build
+npx wrangler deploy --dry-run  # 仅打包检查，不发布
+# 仅在需要手动发布时执行：
+npx wrangler login
+npm run deploy
+```
+
+相关文档：[Workers 自动构建](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)、[资源自动创建](https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning)、[Resend 测试域限制](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)。

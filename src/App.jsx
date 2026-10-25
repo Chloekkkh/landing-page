@@ -1,6 +1,5 @@
-import { useEffect } from 'react'
 import { I18nProvider } from './i18n.jsx'
-import BgDeco from './components/BgDeco.jsx'
+import RevealObserver from './components/RevealObserver.jsx'
 import NavBar from './components/NavBar.jsx'
 import Hero from './components/Hero.jsx'
 import Services from './components/Services.jsx'
@@ -11,31 +10,20 @@ import Faq from './components/Faq.jsx'
 import Booking from './components/Booking.jsx'
 import Footer from './components/Footer.jsx'
 
-// 滚动入场：.reveal 进入视口后加 .in（与旧版 IntersectionObserver 逻辑一致）
-function RevealObserver() {
-  useEffect(() => {
-    const io = new IntersectionObserver((es) => es.forEach((e) => {
-      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) }
-    }), { threshold: 0.1 })
-    document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
-    return () => io.disconnect()
-  }, [])
-  return null
-}
-
 export default function App() {
   return (
     <I18nProvider>
       <RevealObserver />
-      <BgDeco />
       <NavBar />
-      <Hero />
-      <Services />
-      <Process />
-      <WhyUs />
-      <Voices />
-      <Faq />
-      <Booking />
+      <main>
+        <Hero />
+        <Services />
+        <WhyUs />
+        <Process />
+        <Voices />
+        <Faq />
+        <Booking />
+      </main>
       <Footer />
     </I18nProvider>
   )
