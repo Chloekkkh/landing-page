@@ -81,7 +81,7 @@ npm run preview      # 仅预览静态构建产物
    | 部署命令 | `npx wrangler deploy` |
    | 构建变量 | `NODE_VERSION=24.15.0` |
 
-   这里的“生产分支”是这个 Worker 自动发布所跟踪的 Git 分支；选择 `dev` 后，每次推送 `dev` 都会更新该 Worker 的在线版本。初期关闭其他分支自动构建/预览，避免测试预约影响生产数据或触发通知。Workers 的静态目录由配置里的 `assets.directory` 指定为 `dist`，无需填写 Pages 的输出目录，也无需额外部署 `functions/`。
+   这里的“生产分支”是这个 Worker 自动发布所跟踪的 Git 分支；选择 `dev` 后，每次推送 `dev` 都会更新该 Worker 的在线版本。如果生产分支保留 `main`，而 `dev` 通过 Preview Builds 部署，请按下节配置预览。Workers 的静态目录由配置里的 `assets.directory` 指定为 `dist`，无需填写 Pages 的输出目录，也无需额外部署 `functions/`。
 3. 首次部署时 Wrangler 自动为 `BOOKINGS` 绑定创建 KV namespace；确认构建使用的 API token 有 Workers KV Storage 编辑权限。GitHub 部署创建的资源 ID 可在 Cloudflare 后台查看，不会自动回写仓库。若已有预约 KV，部署前在绑定配置中填入现有 `id` 以复用它。
 4. 在该 Worker 的 **Settings → Variables & Secrets** 中配置运行时参数，然后部署新版本使其生效：
 
@@ -98,6 +98,29 @@ npm run preview      # 仅预览静态构建产物
 首次部署完成并不代表邮件已配置成功，需完成上述运行时配置和预约验收。
 
 独立 Sites 团队预览禁用预约提交；GitHub 中的主项目保留真实预约接口。Cloudflare 部署的是主项目，KV 配置正常后即可接收预约；邮件参数不完整时仍保存到 KV，但不会发送通知。
+
+### Cloudflare 分支预览（Worker Previews）
+
+如果构建日志运行的是 `npx wrangler preview`，说明这次走的是预览部署流程。该命令要求配置文件包含顶层 `previews`；仓库已加入 `"previews": {}`，可用于页面预览。`assets` 与兼容日期保留在顶层。
+
+- **构建设置**：Worker → Settings → Build → Branch control，开启需要的 Preview Builds；预览命令使用 `npx wrangler preview`。`npm run preview` 是本地 Vite 静态预览命令，不用于 Cloudflare 部署。
+- **预约存储**：Worker Previews 不继承顶层 `BOOKINGS`，也不会替它自动创建测试 KV。要测试预约，先创建一个测试 KV namespace，在 `previews` 内加入以下绑定，替换为实际 ID。不要复制生产预约 KV 的 ID。
+
+  ```json
+  "previews": {
+    "kv_namespaces": [
+      { "binding": "BOOKINGS", "id": "填入实际测试 KV namespace ID" }
+    ]
+  }
+  ```
+
+- **预览邮件**：Worker → Settings → Variables and secrets，切换到 **Previews Base** 配置测试用途的 `RESEND_API_KEY`、`NOTIFY_EMAIL`、`RESEND_FROM_EMAIL`。普通变量也可在 `previews.vars` 中声明，密钥不能提交到仓库。Base 密钥用于新建预览；已有 `dev` 预览需要单独更新其密钥。
+- **后台绑定**：在 Settings → Bindings → Previews Base 添加绑定后，将后台生成的 `previews` 配置同步回 `wrangler.jsonc`，保持源码与部署设置一致。
+- **验收**：空 `previews` 只解决预览部署入口，不代表预约已配置完成。测试 KV 和邮件渠道均不可用时，预约接口会返回失败；绑定测试 KV 后可先验收留档，再配置邮件通知。
+
+日志中的 open beta 警告不会导致部署失败；`missing a previews block` 才是需要修复的配置错误。本地的 `wrangler deploy --dry-run` 验证生产部署打包，不能代替云端 `wrangler preview` 的实际发布验收。
+
+参考：[预览配置](https://developers.cloudflare.com/workers/previews/configuration/)、[资源与隔离](https://developers.cloudflare.com/workers/previews/resources/)。
 
 ### 预约接口与故障处理
 
