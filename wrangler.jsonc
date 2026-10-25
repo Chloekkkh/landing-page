@@ -16,9 +16,12 @@
     // Wrangler provisions this namespace on first deploy; local dev uses local KV.
     { "binding": "BOOKINGS" }
   ],
-  // Required by `wrangler preview`. Preview KV/secrets are separate from production.
-  // To test bookings, add a test BOOKINGS namespace ID as described in README.
-  "previews": {},
+  // Branch previews use the confirmed test KV; email secrets are configured separately.
+  "previews": {
+    "kv_namespaces": [
+      { "binding": "BOOKINGS", "id": "e010e2ac9c2b40889776503498a55161" }
+    ]
+  },
   "observability": {
     "enabled": true
   }

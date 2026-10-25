@@ -101,10 +101,10 @@ npm run preview      # 仅预览静态构建产物
 
 ### Cloudflare 分支预览（Worker Previews）
 
-如果构建日志运行的是 `npx wrangler preview`，说明这次走的是预览部署流程。该命令要求配置文件包含顶层 `previews`；仓库已加入 `"previews": {}`，可用于页面预览。`assets` 与兼容日期保留在顶层。
+如果构建日志运行的是 `npx wrangler preview`，说明这次走的是预览部署流程。该命令要求配置文件包含顶层 `previews`；仓库已在此处将 `BOOKINGS` 绑定到确认过的测试 KV。`assets` 与兼容日期保留在顶层。
 
 - **构建设置**：Worker → Settings → Build → Branch control，开启需要的 Preview Builds；预览命令使用 `npx wrangler preview`。`npm run preview` 是本地 Vite 静态预览命令，不用于 Cloudflare 部署。
-- **预约存储**：Worker Previews 不继承顶层 `BOOKINGS`，也不会替它自动创建测试 KV。要测试预约，先创建一个测试 KV namespace，在 `previews` 内加入以下绑定，替换为实际 ID。不要复制生产预约 KV 的 ID。
+- **预约存储**：Worker Previews 不继承顶层 `BOOKINGS`，也不会替它自动创建测试 KV。当前测试绑定已写入 `wrangler.jsonc`；如迁移 Cloudflare 账号或更换测试空间，创建新的测试 KV namespace 后，按以下格式替换实际 ID。不要复制生产预约 KV 的 ID。
 
   ```json
   "previews": {
@@ -116,7 +116,7 @@ npm run preview      # 仅预览静态构建产物
 
 - **预览邮件**：Worker → Settings → Variables and secrets，切换到 **Previews Base** 配置测试用途的 `RESEND_API_KEY`、`NOTIFY_EMAIL`、`RESEND_FROM_EMAIL`。普通变量也可在 `previews.vars` 中声明，密钥不能提交到仓库。Base 密钥用于新建预览；已有 `dev` 预览需要单独更新其密钥。
 - **后台绑定**：在 Settings → Bindings → Previews Base 添加绑定后，将后台生成的 `previews` 配置同步回 `wrangler.jsonc`，保持源码与部署设置一致。
-- **验收**：空 `previews` 只解决预览部署入口，不代表预约已配置完成。测试 KV 和邮件渠道均不可用时，预约接口会返回失败；绑定测试 KV 后可先验收留档，再配置邮件通知。
+- **验收**：使用包含绑定配置的最新提交重新构建预览后，提交测试预约，并在测试 KV 中确认 `booking-` 开头的记录。邮件参数可随后配置，KV 保存成功即可返回预约成功。测试 KV 和邮件渠道均不可用时，预约接口会返回失败。
 
 日志中的 open beta 警告不会导致部署失败；`missing a previews block` 才是需要修复的配置错误。本地的 `wrangler deploy --dry-run` 验证生产部署打包，不能代替云端 `wrangler preview` 的实际发布验收。
 
