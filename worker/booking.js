@@ -1,8 +1,9 @@
 const LIMITS = { name: 200, school: 200, contact: 200, level: 100, need: 100, note: 2000 }
 
 async function sendNotification(data, env) {
-  if (!env.RESEND_API_KEY || !env.NOTIFY_EMAIL) {
-    console.error('booking.email_unconfigured')
+  const missing = ['RESEND_API_KEY', 'NOTIFY_EMAIL'].filter((key) => !env[key])
+  if (missing.length) {
+    console.error('booking.email_unconfigured', { missing })
     return false
   }
 

@@ -91,7 +91,7 @@ npm run preview      # 仅预览静态构建产物
    | `NOTIFY_EMAIL` | 接收预约通知的邮箱，使用变量或 Secret |
    | `RESEND_FROM_EMAIL` | 可选，发件邮箱地址，默认 `onboarding@resend.dev` |
 
-   这些参数必须供 **Worker 运行时**使用，不能只填在 Build variables 中。`keep_vars` 已启用，后续代码部署会保留后台配置的普通变量；不要将密钥加上 `VITE_` 前缀或提交到仓库。
+   这些参数必须供 **Worker 运行时**使用，不能只填在 Build variables 中。`keep_vars` 已启用，生产部署会保留后台配置的普通变量；分支预览的普通变量以 `previews.vars` 为准，见下节。不要将密钥加上 `VITE_` 前缀或提交到仓库。
 5. 默认测试发件域只能发到 **Resend 账户邮箱**；其他收件地址须先在 Resend 验证自有域名，再将 `RESEND_FROM_EMAIL` 配置为该域名下的地址（例如 `hello@mandarinbridge.cn`）。仅修改收件地址不能解除测试域限制。
 6. 发布后打开网站，提交一条明确标记为测试的预约，在 KV 中确认留档并检查通知收件箱。在 Workers 日志中检查 `booking.*` 错误事件。自定义域名可在 Worker 的 Domains & Routes 中绑定。
 
@@ -114,7 +114,8 @@ npm run preview      # 仅预览静态构建产物
   }
   ```
 
-- **预览邮件**：Worker → Settings → Variables and secrets，切换到 **Previews Base** 配置测试用途的 `RESEND_API_KEY`、`NOTIFY_EMAIL`、`RESEND_FROM_EMAIL`。普通变量也可在 `previews.vars` 中声明，密钥不能提交到仓库。Base 密钥用于新建预览；已有 `dev` 预览需要单独更新其密钥。
+- **预览邮件**：在当前 `dev` 预览中将 `RESEND_API_KEY` 和 `NOTIFY_EMAIL` 都配置为 **Secret**；自定义发件地址 `RESEND_FROM_EMAIL` 也可作为 Secret 配置。预览重新部署会保留已有 Secret；仅在后台添加、没有写入 `previews.vars` 的普通 Text 变量可能被源码配置覆盖。普通变量也可在 `previews.vars` 中声明，密钥不能提交到仓库。新建预览可从 Settings → Variables and secrets → **Previews Base** 初始化密钥；更新 Base 密钥不会自动更新已有 `dev` 预览。
+- **缺失参数诊断**：`booking.email_unconfigured` 现在附带 `missing` 列表，只记录缺少的变量名。例如 `missing: ["NOTIFY_EMAIL"]` 表示当前请求没有读到收件邮箱。不会记录密钥、邮箱值或预约内容；这条日志说明尚未调用 Resend。
 - **后台绑定**：在 Settings → Bindings → Previews Base 添加绑定后，将后台生成的 `previews` 配置同步回 `wrangler.jsonc`，保持源码与部署设置一致。
 - **验收**：使用包含绑定配置的最新提交重新构建预览后，提交测试预约，并在测试 KV 中确认 `booking-` 开头的记录。邮件参数可随后配置，KV 保存成功即可返回预约成功。测试 KV 和邮件渠道均不可用时，预约接口会返回失败。
 

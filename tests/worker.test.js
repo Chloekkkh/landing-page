@@ -77,11 +77,29 @@ test('responds after KV save while email is still pending', async (t) => {
 })
 
 test('saves successfully when email is unconfigured', async (t) => {
-  const { request, tasks, mail } = setup(t, { email: false })
+  const { request, tasks, mail, logs } = setup(t, { email: false })
   assert.deepEqual(await (await request()).json(), { ok: true, saved: true })
   await Promise.all(tasks)
   assert.equal(mail.mock.callCount(), 0)
+  assert.deepEqual(logs.mock.calls[0].arguments, ['booking.email_unconfigured', {
+    missing: ['RESEND_API_KEY', 'NOTIFY_EMAIL'],
+  }])
 })
+
+for (const missingKey of ['RESEND_API_KEY', 'NOTIFY_EMAIL']) {
+  test(`reports only missing ${missingKey} without logging configuration values`, async (t) => {
+    const { env, request, writes, tasks, mail, logs } = setup(t)
+    delete env[missingKey]
+    const res = await request()
+    assert.deepEqual(await res.json(), { ok: true, saved: true })
+    assert.equal(writes.length, 1)
+    await Promise.all(tasks)
+    assert.equal(mail.mock.callCount(), 0)
+    assert.deepEqual(logs.mock.calls.map((call) => call.arguments), [
+      ['booking.email_unconfigured', { missing: [missingKey] }],
+    ])
+  })
+}
 
 test('background email rejection does not undo a saved booking or log provider data', async (t) => {
   const { request, tasks, logs } = setup(t)
